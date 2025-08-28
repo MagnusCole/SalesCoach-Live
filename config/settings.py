@@ -118,6 +118,13 @@ class AppConfig(BaseSettings):
     log_transcript: bool = Field(default=True, env="LOG_TRANSCRIPT")
     log_debug: bool = Field(default=False, env="LOG_DEBUG")
 
+    # Sales Coaching Configuration
+    use_llm_fallback: bool = Field(default=True, env="USE_LLM_FALLBACK")
+    llm_model: str = Field(default="gpt-5-nano", env="LLM_MODEL")
+    llm_timeout_sec: float = Field(default=0.8, env="LLM_TIMEOUT_SEC")
+    openai_api_key: str = Field(default="", env="OPENAI_API_KEY")
+    playbook_json: str = Field(default="data/playbook.json", env="PLAYBOOK_JSON")
+
     class Config:
         env_file = ".env"
         case_sensitive = False
