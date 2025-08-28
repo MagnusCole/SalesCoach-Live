@@ -1,29 +1,31 @@
 # Deepgram NOVA 3 Transcription System
 
-Sistema avanzado de transcripción en tiempo real usando Deepgram NOVA 3 con SDK v3 optimizado.
+Sistema avanzado de transcripción en tiempo real usando Deepgram NOVA 3 con arquitectura modular optimizada.
 
 ## 🚀 Características Principales
 
 ### NOVA 3 Model
 - **54.2% reducción en WER** (Word Error Rate)
-- **Transcripción en tiempo real** con resultados intermedios
-- **Procesamiento multicanal** para audio estéreo
-- **Detección de actividad de voz (VAD)** avanzada
-- **Endpointing inteligente** para mejor segmentación
+- **Transcripción en tiempo real** con resultados intermedios y finales
+- **Procesamiento multicanal** para audio estéreo (micrófono + loopback)
+- **Detección de actividad de voz (VAD)** avanzada con eventos en tiempo real
+- **Endpointing inteligente** para mejor segmentación de enunciados
 - **Redacción de PII** para protección de datos personales
 - **Diarización** para identificar hablantes múltiples
 - **Control de enunciados** para pausas precisas
-- **Formateo inteligente de números**
+- **Formateo inteligente de números y texto**
 - **Filtro de lenguaje ofensivo**
-- **Formateo inteligente del texto**
+- **Multilingual support** (español, inglés, etc.)
 
-### SDK v3 Optimizaciones
+### Arquitectura Modular Optimizada
+- ✅ **Separación clara de responsabilidades** (config, audio, transcription, CLI)
 - ✅ **Manejo robusto de errores** con recuperación automática
 - ✅ **Logging detallado** para diagnóstico y debugging
-- ✅ **Verificación de versión del SDK** automática
-- ✅ **Gestión de conexiones** optimizada
+- ✅ **Verificación de versión del SDK** automática (v3.x/v4.x)
+- ✅ **Gestión de conexiones WebSocket** optimizada
 - ✅ **Configuración flexible** vía variables de entorno
 - ✅ **Validación de configuración** integrada
+- ✅ **Interfaz CLI completa** con múltiples comandos
 
 ## 📋 Requisitos del Sistema
 
@@ -32,10 +34,18 @@ Sistema avanzado de transcripción en tiempo real usando Deepgram NOVA 3 con SDK
 - **NumPy** para procesamiento de audio
 - **Soundcard** para captura de audio
 - **python-dotenv** para configuración
+- **Pydantic** para validación de configuración
 
 ## 🛠️ Instalación
 
-1. **Clona o descarga los archivos del proyecto**
+### Opción 1: Clonar desde GitHub
+```bash
+git clone https://github.com/TU_USUARIO/TU_REPOSITORIO.git
+cd TU_REPOSITORIO
+```
+
+### Opción 2: Instalación directa
+1. **Descarga los archivos del proyecto**
 
 2. **Instala las dependencias:**
    ```bash
@@ -276,6 +286,50 @@ Si encuentras problemas o tienes sugerencias:
 Este proyecto está disponible bajo la licencia MIT. Ver el archivo LICENSE para más detalles.
 
 ## 🆘 Soporte
+
+### Reportar Problemas
+Si encuentras algún problema o tienes sugerencias:
+
+1. **GitHub Issues**: Crea un issue en el repositorio con detalles completos
+2. **Incluye información de diagnóstico**:
+   - Versión de Python
+   - Versión del SDK de Deepgram
+   - Sistema operativo
+   - Logs de error completos
+   - Pasos para reproducir el problema
+
+### Contribuciones
+¡Las contribuciones son bienvenidas! Para contribuir:
+
+1. Fork el proyecto
+2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
+3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
+4. Push a la rama (`git push origin feature/AmazingFeature`)
+5. Abre un Pull Request
+
+## 🔄 Estado del Proyecto
+
+### ✅ Funcionalidades Completadas
+- ✅ Arquitectura modular completa
+- ✅ Transcripción en tiempo real con NOVA 3
+- ✅ Soporte multichannel (micrófono + loopback)
+- ✅ Detección de actividad de voz (VAD)
+- ✅ CLI completa con validación
+- ✅ Manejo robusto de errores
+- ✅ Configuración vía variables de entorno
+- ✅ Logging detallado
+- ✅ Repositorio GitHub configurado
+
+### 🚧 Mejoras Futuras
+- 🔄 Optimización de rendimiento de audio
+- 🔄 Soporte para más formatos de audio
+- 🔄 Interfaz web para configuración
+- 🔄 Integración con otras APIs de IA
+- 🔄 Soporte para más idiomas
+
+---
+
+**⭐ Si te gusta este proyecto, ¡dale una estrella en GitHub!**
 
 Para soporte técnico:
 - Documentación oficial de Deepgram: https://developers.deepgram.com/
