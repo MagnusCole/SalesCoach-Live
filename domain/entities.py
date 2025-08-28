@@ -5,7 +5,7 @@ Representan los conceptos principales del negocio.
 
 from abc import ABC, abstractmethod
 from typing import Protocol, Optional, List, AsyncGenerator
-from .models import AudioFrame, TranscriptionResult, AudioDevice, ConnectionStatus
+from .models import AudioFrame, TranscriptionResult, AudioDevice, ConnectionStatus, Objection, Suggestion
 
 
 class AudioSource(ABC):
@@ -158,3 +158,63 @@ class TranscriptionSession:
     def is_running(self) -> bool:
         """Verificar si la sesión está activa"""
         return self._running
+
+
+# Entidades para persistencia y post-call
+
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Dict, List, Optional
+from .models import Objection, Suggestion
+
+@dataclass
+class Segment:
+    """Segmento de transcripción con metadata"""
+    call_id: str
+    speaker: int  # 0=tú, 1=prospecto
+    ts_ms: int
+    text: str
+    confidence: float
+    is_final: bool
+    timestamp: datetime
+    objection_type: Optional[str] = None  # Si fue detectada como objeción
+    suggestion_text: Optional[str] = None  # Sugerencia generada
+
+
+@dataclass
+class Call:
+    """Representa una llamada completa con todos sus datos"""
+    call_id: str
+    start_time: datetime
+    end_time: Optional[datetime] = None
+    duration_ms: Optional[int] = None
+    segments: List[Segment] = None
+    objections: List[Objection] = None
+    suggestions: List[Suggestion] = None
+    audio_paths: Dict[str, str] = None  # {"mic": "path", "loop": "path", "mix": "path"}
+    transcript_path: Optional[str] = None
+    summary: Optional['CallSummary'] = None
+
+    def __post_init__(self):
+        if self.segments is None:
+            self.segments = []
+        if self.objections is None:
+            self.objections = []
+        if self.suggestions is None:
+            self.suggestions = []
+        if self.audio_paths is None:
+            self.audio_paths = {}
+
+
+@dataclass
+class CallSummary:
+    """Resumen automático de la llamada"""
+    call_id: str
+    total_segments: int
+    total_objections: int
+    objection_types: Dict[str, int]  # Conteo por tipo
+    speakers_time: Dict[int, int]  # Tiempo hablado por speaker en ms
+    top_topics: List[str]  # Temas principales discutidos
+    next_steps: List[str]  # Próximos pasos recomendados
+    generated_at: datetime
+    confidence_score: float  # 0-1, confianza en el análisis

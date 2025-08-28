@@ -28,6 +28,10 @@ from domain import (
     Suggestion
 )
 from services.objection_service import analyze_segment
+from services.storage import StorageService
+from services.transcript_exporter import TranscriptExporter
+from services.call_analyzer import CallAnalyzer
+from domain.entities import Call, Segment, CallSummary
 
 
 class TranscriptionService:
@@ -38,6 +42,11 @@ class TranscriptionService:
         self.transcription_client = DeepgramTranscriptionClient()
         self.device_selector = DeviceSelector()
 
+        # Servicios de persistencia
+        self.storage = StorageService()
+        self.exporter = TranscriptExporter()
+        self.analyzer = CallAnalyzer()
+
         self._mic_device: Optional[AudioDevice] = None
         self._speaker_device: Optional[AudioDevice] = None
         self._loop_device: Optional[AudioDevice] = None
@@ -45,11 +54,18 @@ class TranscriptionService:
         self._running = False
         self._stats = SessionStats(start_time=datetime.now())
 
+        # Datos de la llamada actual
+        self._current_call: Optional[Call] = None
+        self._call_segments: List[Segment] = []
+        self._call_objections: List[Objection] = []
+        self._call_suggestions: List[Suggestion] = []
+
         # Sistema de eventos simple
         self._event_callbacks: Dict[str, List[Callable]] = {
             "transcript_update": [],
             "objection_detected": [],
-            "suggestion_ready": []
+            "suggestion_ready": [],
+            "call_completed": []
         }
 
         # Registrar callbacks
@@ -122,6 +138,19 @@ class TranscriptionService:
             return
 
         try:
+            # Inicializar nueva llamada
+            call_id = f"call_{int(datetime.now().timestamp())}"
+            self._current_call = Call(
+                call_id=call_id,
+                start_time=datetime.now(),
+                segments=[],
+                objections=[],
+                suggestions=[]
+            )
+            self._call_segments = []
+            self._call_objections = []
+            self._call_suggestions = []
+
             # Conectar a Deepgram
             if not await self.transcription_client.connect():
                 raise RuntimeError("No se pudo conectar a Deepgram")
@@ -133,6 +162,7 @@ class TranscriptionService:
             if config.log_events:
                 layout_desc = "L=Mic/R=Loopback" if config.stereo_layout == "LR" else "L=Loopback/R=Mic"
                 print(f"🎙️ {layout_desc}. Habla y reproduce algo. Ctrl+C para salir.")
+                print(f"📞 Call ID: {call_id}")
 
             # Procesar audio en tiempo real
             async for frame in self.audio_processor.start_capture():
@@ -216,11 +246,23 @@ class TranscriptionService:
             speaker = "Micrófono" if result.channel_index == 0 else "Loopback"
             print(f"{transcript_type}[{speaker}] {result.transcript}")
 
-        # 2) Analizar SOLO al prospecto (convención: speaker == 1 para loopback/prospecto)
+        # 2) Agregar segmento a la llamada actual
+        if self._current_call and result.is_final:
+            from domain.entities import Segment
+            segment = Segment(
+                speaker=result.channel_index,
+                text=result.transcript,
+                timestamp=result.timestamp or datetime.now(),
+                confidence=result.confidence,
+                is_objection=False  # Se actualizará si se detecta objeción
+            )
+            self._call_segments.append(segment)
+
+        # 3) Analizar SOLO al prospecto (convención: speaker == 1 para loopback/prospecto)
         if result.channel_index != 1:  # Solo procesar audio del prospecto
             return
 
-        # 3) Detectar objeciones
+        # 4) Detectar objeciones
         call_id = getattr(result, 'call_id', 'default_call')
         ts_ms = int(result.timestamp.timestamp() * 1000) if result.timestamp else 0
 
@@ -234,7 +276,22 @@ class TranscriptionService:
         if not objection_result.get("is_objection", False):
             return
 
-        # 4) Publicar evento de objeción detectada
+        # 5) Marcar segmento como objeción si se detectó
+        if self._current_call and self._call_segments:
+            self._call_segments[-1].is_objection = True
+
+        # 6) Agregar objeción a la llamada
+        from domain.entities import Objection
+        objection = Objection(
+            type=objection_result["type"],
+            text=result.transcript,
+            timestamp=result.timestamp or datetime.now(),
+            confidence=objection_result.get("confidence", 0.7),
+            source=objection_result.get("source", "rule")
+        )
+        self._call_objections.append(objection)
+
+        # 7) Publicar evento de objeción detectada
         objection_data = {
             "call_id": call_id,
             "speaker": result.channel_index,
@@ -246,7 +303,17 @@ class TranscriptionService:
         }
         self._emit_event("objection_detected", objection_data)
 
-        # 5) Publicar sugerencia de respuesta
+        # 8) Agregar sugerencia a la llamada
+        from domain.entities import Suggestion
+        suggestion = Suggestion(
+            type=objection_result["type"],
+            text=objection_result.get("suggestion", ""),
+            timestamp=result.timestamp or datetime.now(),
+            source=objection_result.get("source", "rule")
+        )
+        self._call_suggestions.append(suggestion)
+
+        # 9) Publicar sugerencia de respuesta
         suggestion_data = {
             "call_id": call_id,
             "ts_ms": ts_ms,
@@ -285,9 +352,58 @@ class TranscriptionService:
             print(f"📊 RMS: Mic={self._stats.avg_rms_mic:.4f}, Loop={self._stats.avg_rms_loop:.4f} | VAD: {self._stats.frames_sent}/{total_frames} ({silence_ratio:.1%} silence)")
 
     async def _cleanup(self) -> None:
-        """Limpiar recursos"""
+        """Limpiar recursos y guardar datos de la llamada"""
         try:
-            self.audio_processor.stop_capture()
+            if self._current_call:
+                # Finalizar la llamada
+                self._current_call.end_time = datetime.now()
+                self._current_call.duration = (self._current_call.end_time - self._current_call.start_time).total_seconds()
+
+                # Agregar segmentos restantes
+                for segment in self._call_segments:
+                    self._current_call.segments.append(segment)
+
+                # Agregar objeciones y sugerencias
+                self._current_call.objections.extend(self._call_objections)
+                self._current_call.suggestions.extend(self._call_suggestions)
+
+                # Generar resumen automático
+                if self.call_analyzer:
+                    summary = await self.call_analyzer.analyze_call(self._current_call)
+                    self._current_call.summary = summary
+
+                # Guardar la llamada
+                if self.storage_service:
+                    await self.storage_service.save_call_data(self._current_call)
+
+                    # Exportar transcripción si está configurado
+                    if config.auto_export_transcript:
+                        if self.transcript_exporter:
+                            export_path = config.export_path or "exports"
+                            await self.transcript_exporter.save_txt(
+                                self._current_call,
+                                f"{export_path}/{self._current_call.call_id}_transcript.txt"
+                            )
+                            await self.transcript_exporter.save_json(
+                                self._current_call,
+                                f"{export_path}/{self._current_call.call_id}_data.json"
+                            )
+
+                if config.log_events:
+                    print(f"💾 Call data saved: {self._current_call.call_id}")
+                    print(f"📊 Duration: {self._current_call.duration:.1f}s")
+                    print(f"🎯 Objections detected: {len(self._current_call.objections)}")
+                    if self._current_call.summary:
+                        print(f"📝 Summary: {self._current_call.summary.overview[:100]}...")
+
+            # Limpiar estado
+            self._current_call = None
+            self._call_segments = []
+            self._call_objections = []
+            self._call_suggestions = []
+
+            # Limpiar recursos existentes
+            await self.audio_processor.stop_capture()
             await self.transcription_client.disconnect()
 
             self._stats.end_time = datetime.now()
