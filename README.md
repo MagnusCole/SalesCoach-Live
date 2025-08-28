@@ -273,6 +273,83 @@ DEEPGRAM_API_KEY=tu_api_key_real
 - ✅ Procesamiento multicanal
 - ✅ Configuración flexible vía entorno
 
+## 🌐 Interfaz Web
+
+El sistema incluye una interfaz web completa para coaching de ventas en tiempo real.
+
+### Inicio Rápido
+
+#### Opción 1: Inicio completo (Backend + Frontend)
+```bash
+# Windows PowerShell
+.\start_web.ps1
+
+# Linux/macOS
+./start_web.sh
+```
+
+#### Opción 2: Inicio individual
+
+**Backend:**
+```bash
+cd web/backend
+# Windows
+.\start_backend.ps1
+# Linux/macOS
+./start_backend.sh
+```
+
+**Frontend:**
+```bash
+cd web/frontend
+npm install
+npm run dev
+```
+
+### URLs de Acceso
+- **Frontend:** http://localhost:3000
+- **Backend API:** http://localhost:8000
+- **API Docs:** http://localhost:8000/docs
+
+### Características de la Interfaz Web
+
+#### 🎯 Funcionalidades Principales
+- **Transcripción en tiempo real** con segmentación automática
+- **Detección de objeciones** con alertas visuales
+- **Sistema de sugerencias** para respuestas efectivas
+- **Controles de grabación** con estados visuales
+- **Panel de métricas** en tiempo real
+
+#### 🎨 Interfaz Moderna
+- **Diseño responsive** optimizado para desktop y tablet
+- **Tema oscuro/claro** con Tailwind CSS
+- **Indicadores de estado** en tiempo real
+- **Navegación intuitiva** con paneles organizados
+
+#### 🔌 Conexión Backend-Frontend
+- **WebSocket persistente** para comunicación en tiempo real
+- **API REST** para operaciones CRUD
+- **Manejo de errores robusto** con recuperación automática
+- **CORS configurado** para desarrollo local
+
+### Arquitectura Web
+
+```
+web/
+├── backend/           # FastAPI + WebSocket
+│   ├── main.py       # Servidor principal
+│   ├── requirements.txt
+│   └── start_backend.*
+└── frontend/          # Next.js + TypeScript
+    ├── src/
+    │   ├── app/      # Páginas Next.js
+    │   ├── components/
+    │   ├── hooks/    # useWebSocket, useCoach
+    │   ├── services/ # API client
+    │   └── types/    # TypeScript types
+    └── package.json
+```
+
 ## 🤝 Contribuciones
 
 Si encuentras problemas o tienes sugerencias:
