@@ -42,7 +42,6 @@ class TranscriptionResult:
 
 
 @dataclass
-@dataclass
 class AudioDevice:
     """Información de dispositivo de audio"""
     id: str
@@ -111,3 +110,37 @@ class NOVA3Config:
     numerals: bool = True
     profanity_filter: bool = False
     smart_format: bool = True
+
+
+# Modelos para el sistema de coaching de ventas
+
+@dataclass
+class Objection:
+    """Representa una objeción detectada en una conversación de ventas"""
+    call_id: str
+    ts_ms: int
+    speaker: int  # 0=tú, 1=prospecto (ajusta a tu convención)
+    type: str     # "precio" | "tiempo" | "autoridad" | "competencia" | "confianza" | "otro"
+    text: str
+    confidence: float  # 0..1
+
+
+@dataclass
+class Suggestion:
+    """Representa una sugerencia de respuesta para una objeción"""
+    call_id: str
+    ts_ms: int
+    type: str
+    text: str
+    source: str  # "rule" | "playbook" | "llm"
+    meta: Optional[Dict[str, Any]] = None
+
+
+@dataclass
+class PlaybookEntry:
+    """Entrada del playbook de respuestas ganadoras"""
+    objection_type: str
+    industry: Optional[str]
+    stage: Optional[str]
+    text: str
+    score: float = 1.0  # para rankear y aprender luego

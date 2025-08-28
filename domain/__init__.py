@@ -9,7 +9,10 @@ from .models import (
     VADResult,
     ConnectionStatus,
     SessionStats,
-    NOVA3Config
+    NOVA3Config,
+    Objection,
+    Suggestion,
+    PlaybookEntry
 )
 from .entities import (
     AudioSource,

@@ -5,7 +5,7 @@ Orquesta todos los componentes del sistema.
 
 import asyncio
 import sys
-from typing import Optional
+from typing import Optional, Dict, Any, Callable, List
 from datetime import datetime
 from pathlib import Path
 
@@ -23,8 +23,11 @@ from core import (
 from domain import (
     AudioDevice,
     TranscriptionResult,
-    SessionStats
+    SessionStats,
+    Objection,
+    Suggestion
 )
+from services.objection_service import analyze_segment
 
 
 class TranscriptionService:
@@ -42,8 +45,30 @@ class TranscriptionService:
         self._running = False
         self._stats = SessionStats(start_time=datetime.now())
 
+        # Sistema de eventos simple
+        self._event_callbacks: Dict[str, List[Callable]] = {
+            "transcript_update": [],
+            "objection_detected": [],
+            "suggestion_ready": []
+        }
+
         # Registrar callbacks
         self._register_callbacks()
+
+    def on_event(self, event_type: str, callback: Callable) -> None:
+        """Registrar callback para eventos"""
+        if event_type in self._event_callbacks:
+            self._event_callbacks[event_type].append(callback)
+
+    def _emit_event(self, event_type: str, data: Dict[str, Any]) -> None:
+        """Emitir evento a todos los callbacks registrados"""
+        if event_type in self._event_callbacks:
+            for callback in self._event_callbacks[event_type]:
+                try:
+                    callback(data)
+                except Exception as e:
+                    if config.log_debug:
+                        print(f"Error in event callback {event_type}: {e}")
 
     async def initialize(self) -> bool:
         """
@@ -165,6 +190,22 @@ class TranscriptionService:
         """Manejar resultado de transcripción"""
         self._stats.transcription_count += 1
 
+        # Crear task async para análisis de objeciones
+        asyncio.create_task(self._process_transcript(result))
+
+    async def _process_transcript(self, result: TranscriptionResult) -> None:
+        """Procesar resultado de transcripción (async para análisis de objeciones)"""
+        # 1) Emitir transcript en vivo (para UI)
+        transcript_data = {
+            "call_id": getattr(result, 'call_id', 'default_call'),
+            "speaker": result.channel_index,
+            "ts_ms": int(result.timestamp.timestamp() * 1000) if result.timestamp else 0,
+            "text": result.transcript,
+            "is_final": result.is_final,
+            "confidence": result.confidence
+        }
+        self._emit_event("transcript_update", transcript_data)
+
         if config.log_transcript:
             transcript_type = ""
             if config.deepgram_interim_results and not result.is_final:
@@ -174,6 +215,46 @@ class TranscriptionService:
 
             speaker = "Micrófono" if result.channel_index == 0 else "Loopback"
             print(f"{transcript_type}[{speaker}] {result.transcript}")
+
+        # 2) Analizar SOLO al prospecto (convención: speaker == 1 para loopback/prospecto)
+        if result.channel_index != 1:  # Solo procesar audio del prospecto
+            return
+
+        # 3) Detectar objeciones
+        call_id = getattr(result, 'call_id', 'default_call')
+        ts_ms = int(result.timestamp.timestamp() * 1000) if result.timestamp else 0
+
+        objection_result = await analyze_segment(
+            call_id=call_id,
+            speaker=result.channel_index,
+            text=result.transcript,
+            ts_ms=ts_ms
+        )
+
+        if not objection_result.get("is_objection", False):
+            return
+
+        # 4) Publicar evento de objeción detectada
+        objection_data = {
+            "call_id": call_id,
+            "speaker": result.channel_index,
+            "ts_ms": ts_ms,
+            "type": objection_result["type"],
+            "text": result.transcript,
+            "confidence": objection_result.get("confidence", 0.7),
+            "source": objection_result.get("source", "rule")
+        }
+        self._emit_event("objection_detected", objection_data)
+
+        # 5) Publicar sugerencia de respuesta
+        suggestion_data = {
+            "call_id": call_id,
+            "ts_ms": ts_ms,
+            "type": objection_result["type"],
+            "text": objection_result.get("suggestion", ""),
+            "source": objection_result.get("source", "rule")
+        }
+        self._emit_event("suggestion_ready", suggestion_data)
 
     def _handle_error(self, error) -> None:
         """Manejar error de transcripción"""
