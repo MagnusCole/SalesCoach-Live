@@ -245,7 +245,15 @@ function ControlsPanel({
 
 // Componente Principal Coach Live
 export default function CoachLive() {
-  const { settings, isRecording, setIsRecording, currentCallId, setCurrentCallId } = useCoach();
+  // Verificación de hidratación para evitar errores de layout-router
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
+
+  const { settings, currentCallId, setCurrentCallId } = useCoach();
+
   const [sessionData, setSessionData] = useState<{ call_id: string; ws_url: string; status: string } | null>(null);
 
   const {
@@ -254,11 +262,24 @@ export default function CoachLive() {
     objections,
     suggestions,
     error,
+    isRecording,
     connect,
     startTranscription,
     stopTranscription,
     toggleCoach
   } = useWebSocket(currentCallId);
+
+  // Evitar render hasta que esté hidratado para prevenir errores de layout-router
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen bg-gray-100 p-6 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando Sales Coach Live...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleStartRecording = async () => {
     try {
@@ -278,7 +299,6 @@ export default function CoachLive() {
       // Iniciar transcripción
       console.log('🎤 Iniciando transcripción...');
       startTranscription();
-      setIsRecording(true);
     } catch (err) {
       console.error('❌ Error starting recording:', err);
       // El error será manejado por el hook useWebSocket
@@ -287,12 +307,13 @@ export default function CoachLive() {
 
   const handleStopRecording = () => {
     stopTranscription();
-    setIsRecording(false);
   };
 
   const handleToggleCoach = (enabled: boolean) => {
     toggleCoach(enabled);
   };
+
+  console.log('🔍 DEBUG - CoachLive - About to render JSX');
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">

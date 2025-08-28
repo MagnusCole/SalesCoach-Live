@@ -158,14 +158,6 @@ export const useWebSocket = (callId: string | null) => {
     }
   }, []);
 
-  const startTranscription = useCallback(() => {
-    sendMessage('start_transcription');
-  }, [sendMessage]);
-
-  const stopTranscription = useCallback(() => {
-    sendMessage('stop_transcription');
-  }, [sendMessage]);
-
   const toggleCoach = useCallback((enabled: boolean) => {
     sendMessage('toggle_coach', { enabled });
   }, [sendMessage]);
@@ -190,6 +182,101 @@ export const useWebSocket = (callId: string | null) => {
     };
   }, [cleanup]);
 
+  // Funciones para captura de audio desde el navegador
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
+  const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
+
+  const startAudioCapture = useCallback(async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          sampleRate: 16000
+        }
+      });
+
+      setAudioStream(stream);
+      const recorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0 && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          // Convertir el blob de audio a ArrayBuffer y enviar por WebSocket
+          event.data.arrayBuffer().then(buffer => {
+            wsRef.current!.send(JSON.stringify({
+              type: 'audio_data',
+              data: {
+                audio: Array.from(new Uint8Array(buffer)),
+                timestamp: Date.now()
+              }
+            }));
+          });
+        }
+      };
+
+      recorder.onstop = () => {
+        if (audioStream) {
+          audioStream.getTracks().forEach(track => track.stop());
+        }
+        setAudioStream(null);
+        setMediaRecorder(null);
+      };
+
+      setMediaRecorder(recorder);
+      recorder.start(100); // Enviar datos cada 100ms
+      setIsRecording(true);
+
+      console.log('🎤 Captura de audio iniciada');
+    } catch (err) {
+      console.error('Error al iniciar captura de audio:', err);
+      setError('Error al acceder al micrófono');
+    }
+  }, [audioStream]);
+
+  const stopAudioCapture = useCallback(() => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    setIsRecording(false);
+    console.log('⏹️ Captura de audio detenida');
+  }, [mediaRecorder]);
+
+  // Modificar startTranscription para incluir captura de audio
+  const startTranscriptionWithAudio = useCallback(async () => {
+    if (!isConnected) {
+      setError('WebSocket no conectado');
+      return;
+    }
+
+    // Enviar mensaje para iniciar transcripción en el backend
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'start_transcription',
+        data: { timestamp: Date.now() }
+      }));
+    }
+
+    // Iniciar captura de audio desde el navegador
+    await startAudioCapture();
+  }, [isConnected, startAudioCapture]);
+
+  // Modificar stopTranscription para detener captura de audio
+  const stopTranscriptionWithAudio = useCallback(() => {
+    // Enviar mensaje para detener transcripción en el backend
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'stop_transcription',
+        data: { timestamp: Date.now() }
+      }));
+    }
+
+    // Detener captura de audio
+    stopAudioCapture();
+  }, [stopAudioCapture]);
+
   return {
     isConnected,
     callData,
@@ -197,9 +284,10 @@ export const useWebSocket = (callId: string | null) => {
     objections,
     suggestions,
     error,
+    isRecording,
     connect,
-    startTranscription,
-    stopTranscription,
+    startTranscription: startTranscriptionWithAudio,
+    stopTranscription: stopTranscriptionWithAudio,
     toggleCoach,
     sendMessage
   };
