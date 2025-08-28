@@ -6,7 +6,7 @@ KEYS = {
   "tiempo":      [r"\bno tengo tiempo\b", r"\bdespu[eé]s\b", r"\bluego\b"],
   "autoridad":   [r"\btengo que (consultar|hablar)\b", r"\bmi jefe\b"],
   "confianza":   [r"\bno conf[ií]o\b", r"\bno estoy seguro\b", r"\bdem[uú]estr"],
-  "competencia": [r"\botro proveedor\b", r"\bye tengo\b", r"\buso (.+)\b"],
+  "competencia": [r"\botro proveedor\b", r"\bya tengo\b", r"\buso (.+)\b"],
 }
 
 def _match_rule(text: str):
