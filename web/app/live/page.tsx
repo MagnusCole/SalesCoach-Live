@@ -16,6 +16,8 @@ export default function Live() {
   const [coachEnabled, setCoachEnabled] = useState(true);
   const [callId, setCallId] = useState<string>("");
   const [callEnded, setCallEnded] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   const cleanup = () => {
     // Limpiar MediaRecorder
@@ -112,18 +114,58 @@ export default function Live() {
         });
         mediaRecorderRef.current = rec;
 
+        // Limpiar chunks anteriores
+        audioChunksRef.current = [];
+
         rec.ondataavailable = (e) => {
-          if (e.data.size > 0 && wsRef.current?.readyState === WebSocket.OPEN) {
-            e.data.arrayBuffer().then(buf => wsRef.current?.send(new Uint8Array(buf)));
+          if (e.data.size > 0) {
+            // Almacenar chunk localmente para el blob final
+            audioChunksRef.current.push(e.data);
+
+            // Enviar chunk al WebSocket para transcripción en tiempo real
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              e.data.arrayBuffer().then(buf => wsRef.current?.send(new Uint8Array(buf)));
+            }
           }
         };
 
-        rec.onstop = () => {
+        rec.onstop = async () => {
           setLog(prev => [...prev, "⏹️ Grabación detenida"]);
+
+          // Crear blob final y enviarlo al servidor
+          if (audioChunksRef.current.length > 0) {
+            const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+
+            try {
+              const formData = new FormData();
+              formData.append("file", audioBlob, "audio.webm");
+
+              // Construir URL base dinámicamente
+              const apiBase = new URL(API_WS).origin.replace('ws', 'http').replace('wss', 'https');
+              const uploadUrl = `${apiBase}/upload-final/${callId}`;
+
+              const response = await fetch(uploadUrl, {
+                method: 'POST',
+                body: formData
+              });
+
+              if (response.ok) {
+                setLog(prev => [...prev, "💾 Audio guardado exitosamente"]);
+              } else {
+                setLog(prev => [...prev, "❌ Error al guardar audio"]);
+              }
+            } catch (error) {
+              console.error("Error uploading audio:", error);
+              setLog(prev => [...prev, "❌ Error al subir audio"]);
+            }
+          }
+
+          setIsRecording(false);
         };
 
         // Iniciar grabación
         rec.start(250);
+        setIsRecording(true);
         setLog(prev => [...prev, "🎤 Grabación iniciada"]);
 
       } catch (error) {
@@ -136,6 +178,18 @@ export default function Live() {
     return cleanup;
   }, []);
 
+  const toggleCoach = (enabled: boolean) => {
+    setCoachEnabled(enabled);
+
+    // Enviar mensaje al backend si hay conexión WebSocket
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "coach_toggle",
+        enabled: enabled
+      }));
+    }
+  };
+
   const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.stop();
@@ -145,7 +199,9 @@ export default function Live() {
   const downloadTranscript = async () => {
     if (!callId) return;
     try {
-      const response = await fetch(`http://localhost:8000/calls/${callId}/transcript.txt`);
+      // Construir URL base dinámicamente
+      const apiBase = new URL(API_WS).origin.replace('ws', 'http').replace('wss', 'https');
+      const response = await fetch(`${apiBase}/calls/${callId}/transcript.txt`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -167,7 +223,9 @@ export default function Live() {
   const downloadAudio = async () => {
     if (!callId) return;
     try {
-      const response = await fetch(`http://localhost:8000/calls/${callId}/audio.webm`);
+      // Construir URL base dinámicamente
+      const apiBase = new URL(API_WS).origin.replace('ws', 'http').replace('wss', 'https');
+      const response = await fetch(`${apiBase}/calls/${callId}/audio.webm`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -206,7 +264,7 @@ export default function Live() {
               <input
                 type="checkbox"
                 checked={coachEnabled}
-                onChange={(e) => setCoachEnabled(e.target.checked)}
+                onChange={(e) => toggleCoach(e.target.checked)}
                 className="rounded"
               />
               Coach Activo
