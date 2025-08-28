@@ -1,0 +1,13 @@
+# Núcleo audio/red
+numpy>=2.1,<3
+soundcard>=0.4,<0.6        # requiere el "parche fromstring→frombuffer" con NumPy 2.x
+python-dotenv>=1.0,<2.0
+
+# Deepgram SDK oficial
+deepgram-sdk>=3.0,<4
+
+# Llamadas HTTP a OpenAI (para sugerencias)
+aiohttp>=3.10,<4
+
+# (Opcional) mejor remuestreo de audio
+# scipy>=1.14,<2
