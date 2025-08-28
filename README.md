@@ -1,56 +1,147 @@
-# Deepgram NOVA 3 Transcription System
+# Sales Coach Live
 
-Sistema avanzado de transcripción en tiempo real usando Deepgram NOVA 3 con arquitectura modular optimizada.
+Sistema de coaching de ventas en tiempo real que captura audio de llamadas y proporciona sugerencias automáticas basadas en objeciones detectadas.
 
-## 🚀 Características Principales
+## 🚀 Inicio Rápido
 
-### NOVA 3 Model
-- **54.2% reducción en WER** (Word Error Rate)
-- **Transcripción en tiempo real** con resultados intermedios y finales
-- **Procesamiento multicanal** para audio estéreo (micrófono + loopback)
-- **Detección de actividad de voz (VAD)** avanzada con eventos en tiempo real
-- **Endpointing inteligente** para mejor segmentación de enunciados
-- **Redacción de PII** para protección de datos personales
-- **Diarización** para identificar hablantes múltiples
-- **Control de enunciados** para pausas precisas
-- **Formateo inteligente de números y texto**
-- **Filtro de lenguaje ofensivo**
-- **Multilingual support** (español, inglés, etc.)
+### Desarrollo Local
 
-### Arquitectura Modular Optimizada
-- ✅ **Separación clara de responsabilidades** (config, audio, transcription, CLI)
-- ✅ **Manejo robusto de errores** con recuperación automática
-- ✅ **Logging detallado** para diagnóstico y debugging
-- ✅ **Verificación de versión del SDK** automática (v3.x/v4.x)
-- ✅ **Gestión de conexiones WebSocket** optimizada
-- ✅ **Configuración flexible** vía variables de entorno
-- ✅ **Validación de configuración** integrada
-- ✅ **Interfaz CLI completa** con múltiples comandos
-
-## 📋 Requisitos del Sistema
-
-- **Python 3.10+**
-- **Deepgram SDK v3.x o v4.x** (`pip install deepgram-sdk>=3.0,<5`)
-- **NumPy** para procesamiento de audio
-- **Soundcard** para captura de audio
-- **python-dotenv** para configuración
-- **Pydantic** para validación de configuración
-
-## 🛠️ Instalación
-
-### Opción 1: Clonar desde GitHub
+**Backend:**
 ```bash
-git clone https://github.com/TU_USUARIO/TU_REPOSITORIO.git
-cd TU_REPOSITORIO
+cd api
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
 ```
 
-### Opción 2: Instalación directa
-1. **Descarga los archivos del proyecto**
+**Frontend:**
+```bash
+cd web
+npm install
+npm run dev
+```
 
-2. **Instala las dependencias:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Despliegue en Producción
+
+**Backend (Cloud Run):**
+```bash
+gcloud run deploy salescoach-api \
+  --source ./api \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars DEEPGRAM_API_KEY=YOUR_KEY,DEEPGRAM_MODEL=nova-3-general,DEEPGRAM_LANGUAGE=multi \
+  --timeout 3600 --concurrency 20 --memory 1Gi
+```
+
+**Frontend (Vercel/Netlify):**
+1. Despliega la carpeta `web/`
+2. Configura `NEXT_PUBLIC_API_WS` con la URL de Cloud Run (ej: `wss://tu-app.run.app/ws/demo`)
+
+## 📁 Estructura del Proyecto
+
+```
+salescoach-live/
+├─ api/                      # Backend FastAPI (Cloud Run)
+│  ├─ main.py                # WS relay + Deepgram + eventos
+│  ├─ objection_service.py   # Reglas + fallback LLM (opcional)
+│  ├─ playbooks.py           # Lectura de KB / playbook
+│  ├─ data/
+│  │  └─ playbook.json       # Respuestas por objeción (tu KB)
+│  ├─ requirements.txt
+│  └─ Dockerfile
+├─ web/                      # Frontend (Next.js sencillo)
+│  ├─ app/
+│  │  ├─ page.tsx            # / (Start)
+│  │  └─ live/page.tsx       # /live (vista en vivo)
+│  ├─ public/
+│  ├─ package.json
+│  └─ next.config.mjs
+├─ .env.example              # Variables necesarias (sin secretos)
+└─ README.md                 # Cómo correr local / desplegar
+```
+
+## ⚙️ Configuración
+
+1. Copia `.env.example` a `.env`
+2. Configura tu `DEEPGRAM_API_KEY`
+3. Ajusta `DEEPGRAM_LANGUAGE` según necesites (`es` para español puro, `multi` para multilingüe)
+
+## 🎯 Características
+
+- **Transcripción en tiempo real** usando Deepgram NOVA 3
+- **Detección automática de objeciones** basada en reglas regex
+- **Sugerencias contextuales** desde playbook personalizado
+- **Interfaz web moderna** con captura de pantalla
+- **Arquitectura serverless** lista para producción
+
+## � Desarrollo
+
+### Requisitos
+- Python 3.11+
+- Node.js 18+
+- API Key de Deepgram
+
+### Comandos Útiles
+
+```bash
+# Backend
+cd api && pip install -r requirements.txt
+uvicorn main:app --reload
+
+# Frontend
+cd web && npm install && npm run dev
+
+# Health check
+curl http://localhost:8000/healthz
+```
+
+## 🚀 Despliegue
+
+### Cloud Run (Backend)
+```bash
+gcloud run deploy salescoach-api \
+  --source ./api \
+  --region us-central1 \
+  --allow-unauthenticated \
+  --set-env-vars DEEPGRAM_API_KEY=XXXX,DEEPGRAM_MODEL=nova-3-general,DEEPGRAM_LANGUAGE=multi \
+  --timeout 3600
+```
+
+### Vercel (Frontend)
+1. Conecta tu repo a Vercel
+2. Configura variable: `NEXT_PUBLIC_API_WS=wss://tu-cloud-run-url/ws/demo`
+3. Deploy automático
+
+## � Personalización
+
+### Playbook de Objeciones
+Edita `api/data/playbook.json` para personalizar las respuestas:
+
+```json
+[
+  { "objection_type": "precio", "text": "Tu respuesta personalizada aquí" },
+  { "objection_type": "tiempo", "text": "Otra respuesta..." }
+]
+```
+
+### Reglas de Detección
+Modifica `api/objection_service.py` para ajustar las expresiones regex que detectan objeciones.
+
+## 🔒 Seguridad
+
+- API keys via variables de entorno
+- Sin almacenamiento de audio sensible
+- Conexiones WebSocket encriptadas
+- Validación de entrada en todos los endpoints
+
+## 📊 Monitoreo
+
+- Endpoint `/healthz` para verificar estado
+- Logs detallados en Cloud Run
+- Métricas de uso disponibles en consola de Google Cloud
+
+---
+
+¡Tu sistema de coaching de ventas está listo! 🎯
 
 3. **Configura tu API Key:**
    ```bash
